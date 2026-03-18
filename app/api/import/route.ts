@@ -19,7 +19,8 @@ interface ProgressEvent {
 }
 
 function formatMessageText(msg: ParsedMessage): string {
-  return `${msg.sender} - ${msg.date}\n\n${msg.text}`;
+  const safeSender = msg.sender.replace(/\*/g, "\\*");
+  return `**${safeSender}** - ${msg.date}\n\n${msg.text}`;
 }
 
 export async function POST(req: NextRequest) {
