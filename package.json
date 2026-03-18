@@ -1,6 +1,6 @@
 {
   "name": "msgr-tlg",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
