@@ -7,7 +7,6 @@ export function HelpButton() {
   const [open, setOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -44,18 +43,15 @@ export function HelpButton() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, close]);
 
-  const wasOpen = useRef(false);
   useEffect(() => {
-    if (wasOpen.current && !open) {
-      triggerRef.current?.focus();
+    if (!open) {
+      (document.activeElement as HTMLElement)?.blur();
     }
-    wasOpen.current = open;
   }, [open]);
 
   return (
     <>
       <button
-        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
