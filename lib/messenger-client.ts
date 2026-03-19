@@ -2,6 +2,7 @@ const BASE_URL = "https://botapi.messenger.yandex.net/bot/v1/messages";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface MessengerResponse {
   ok: boolean;
@@ -37,8 +38,9 @@ async function requestWithRetry(
   init: RequestInit
 ): Promise<MessengerResponse> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
     try {
-      const res = await fetch(url, init);
+      const res = await fetch(url, { ...init, signal: timeout });
 
       if (res.ok) {
         return parseResponse(res);
@@ -72,15 +74,19 @@ async function requestWithRetry(
 export async function sendText(
   token: string,
   chatId: string,
-  text: string
+  text: string,
+  threadId?: number
 ): Promise<MessengerResponse> {
+  const payload: Record<string, unknown> = { chat_id: chatId, text };
+  if (threadId != null) payload.thread_id = threadId;
+
   return requestWithRetry(`${BASE_URL}/sendText`, {
     method: "POST",
     headers: {
       ...authHeaders(token),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -89,11 +95,13 @@ export async function sendImage(
   chatId: string,
   data: ArrayBuffer,
   fileName: string,
-  mimeType: string = "image/jpeg"
+  mimeType: string = "image/jpeg",
+  threadId?: number
 ): Promise<MessengerResponse> {
   const form = new FormData();
   form.append("chat_id", chatId);
   form.append("image", new Blob([data], { type: mimeType }), fileName);
+  if (threadId != null) form.append("thread_id", String(threadId));
 
   return requestWithRetry(`${BASE_URL}/sendImage`, {
     method: "POST",
@@ -107,11 +115,13 @@ export async function sendFile(
   chatId: string,
   data: ArrayBuffer,
   fileName: string,
-  mimeType: string
+  mimeType: string,
+  threadId?: number
 ): Promise<MessengerResponse> {
   const form = new FormData();
   form.append("chat_id", chatId);
   form.append("document", new Blob([data], { type: mimeType }), fileName);
+  if (threadId != null) form.append("thread_id", String(threadId));
 
   return requestWithRetry(`${BASE_URL}/sendFile`, {
     method: "POST",

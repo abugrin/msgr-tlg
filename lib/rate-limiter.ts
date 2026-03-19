@@ -3,7 +3,7 @@
  * Supports dynamic RPS change for fallback on rate-limit errors.
  */
 export class RateLimiter {
-  private lastCall = 0;
+  private lastCall = Date.now();
   private intervalMs: number;
 
   constructor(maxRps: number) {

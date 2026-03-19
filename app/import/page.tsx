@@ -18,6 +18,7 @@ export default function ImportPage() {
   const [token, setToken] = useState("");
   const [chatId, setChatId] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [replyMode, setReplyMode] = useState<"flat" | "threads">("threads");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -54,6 +55,7 @@ export default function ImportPage() {
     formData.append("file", file);
     formData.append("token", token);
     formData.append("chatId", chatId);
+    formData.append("replyMode", replyMode);
 
     try {
       const res = await fetch("/api/import", {
@@ -72,6 +74,24 @@ export default function ImportPage() {
       const decoder = new TextDecoder();
       let buffer = "";
 
+      const processLine = (line: string) => {
+        if (!line.trim()) return;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === "progress" && event.current != null && event.total != null) {
+            setProgress({ current: event.current, total: event.total });
+          }
+          if (event.type !== "progress") {
+            addLog(event);
+          }
+          if (event.type === "done") {
+            setDone(true);
+          }
+        } catch (err) {
+          console.warn("Malformed stream line:", line, err);
+        }
+      };
+
       while (true) {
         const { done: streamDone, value } = await reader.read();
         if (streamDone) break;
@@ -81,22 +101,12 @@ export default function ImportPage() {
         buffer = lines.pop() ?? "";
 
         for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line);
-            if (event.type === "progress" && event.current != null && event.total != null) {
-              setProgress({ current: event.current, total: event.total });
-            }
-            if (event.type !== "progress") {
-              addLog(event);
-            }
-            if (event.type === "done") {
-              setDone(true);
-            }
-          } catch {
-            // skip malformed lines
-          }
+          processLine(line);
         }
+      }
+
+      if (buffer.trim()) {
+        processLine(buffer);
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -113,7 +123,9 @@ export default function ImportPage() {
     setRunning(false);
   };
 
-  const pct = progress ? Math.round((progress.current / progress.total) * 100) : 0;
+  const pct = progress && progress.total > 0
+    ? Math.round((progress.current / progress.total) * 100)
+    : 0;
 
   const logLevelStyles: Record<LogLevel, string> = {
     error: "text-red-500 dark:text-red-400",
@@ -182,6 +194,41 @@ export default function ImportPage() {
                        focus:outline-none focus:ring-2 focus:ring-blue-500
                        disabled:opacity-50"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Режим ответов</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setReplyMode("threads")}
+              className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors
+                ${replyMode === "threads"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400"}
+                disabled:opacity-50`}
+            >
+              Треды
+            </button>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setReplyMode("flat")}
+              className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors
+                ${replyMode === "flat"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400"}
+                disabled:opacity-50`}
+            >
+              Без тредов
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {replyMode === "flat"
+              ? "Все сообщения отправляются последовательно без группировки"
+              : "Ответы на сообщения группируются в треды"}
+          </p>
         </div>
 
         <div className="flex gap-3">

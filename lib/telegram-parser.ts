@@ -41,6 +41,7 @@ export interface ParsedMessage {
   date: string;
   sender: string;
   text: string;
+  replyToMessageId: number | null;
   mediaPath: string | null;
   mediaType: "image" | "file" | null;
   mediaFileName: string | null;
@@ -66,11 +67,14 @@ function flattenText(text: TelegramMessage["text"]): string {
 }
 
 function formatDate(iso: string): string {
-  // "2025-10-28T17:19:47" -> "28.10.2025 17:19"
-  const [datePart, timePart] = iso.split("T");
-  const [y, m, d] = datePart.split("-");
-  const hhmm = timePart.slice(0, 5);
-  return `${d}.${m}.${y} ${hhmm}`;
+  const parsed = new Date(iso);
+  if (isNaN(parsed.getTime())) return iso;
+  const d = String(parsed.getDate()).padStart(2, "0");
+  const m = String(parsed.getMonth() + 1).padStart(2, "0");
+  const y = parsed.getFullYear();
+  const hh = String(parsed.getHours()).padStart(2, "0");
+  const mm = String(parsed.getMinutes()).padStart(2, "0");
+  return `${d}.${m}.${y} ${hh}:${mm}`;
 }
 
 /**
@@ -170,6 +174,7 @@ export async function parseTelegramExport(
       date,
       sender,
       text,
+      replyToMessageId: msg.reply_to_message_id ?? null,
       ...media,
     });
   }

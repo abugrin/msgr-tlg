@@ -8,7 +8,13 @@ import { sendText, sendImage, sendFile } from "@/lib/messenger-client";
 import { RateLimiter } from "@/lib/rate-limiter";
 
 export const runtime = "nodejs";
+
 export const maxDuration = 300;
+
+const INITIAL_RPS = 50;
+const FALLBACK_RPS = 20;
+const MAX_ZIP_SIZE_BYTES = 200 * 1024 * 1024; // 200 MB
+const CHAT_ID_PATTERN = /^\d+\/\d+\/[0-9a-f-]+$/i;
 
 interface ProgressEvent {
   type: "info" | "progress" | "error" | "done";
@@ -29,6 +35,8 @@ export async function POST(req: NextRequest) {
   const token = formData.get("token") as string | null;
   const rawChatId = formData.get("chatId") as string | null;
 
+  const replyMode = (formData.get("replyMode") as string) ?? "flat";
+
   if (!file || !token || !rawChatId) {
     return Response.json(
       { error: "Необходимо указать файл, токен и ID чата" },
@@ -39,9 +47,22 @@ export async function POST(req: NextRequest) {
   // Decode URL-encoded chat IDs (e.g. "0%2F0%2Fxxx" -> "0/0/xxx")
   const chatId = decodeURIComponent(rawChatId);
 
+  if (!CHAT_ID_PATTERN.test(chatId)) {
+    return Response.json(
+      { error: `Некорректный формат ID чата: ${chatId}` },
+      { status: 400 }
+    );
+  }
+
+  if (file.size > MAX_ZIP_SIZE_BYTES) {
+    return Response.json(
+      { error: `Файл слишком большой (${Math.round(file.size / 1024 / 1024)} МБ). Максимум: 200 МБ` },
+      { status: 400 }
+    );
+  }
+
   const encoder = new TextEncoder();
-  const limiter = new RateLimiter(50);
-  const FALLBACK_RPS = 20;
+  const limiter = new RateLimiter(INITIAL_RPS);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -66,16 +87,37 @@ export async function POST(req: NextRequest) {
         let fallbackLogged = false;
         const total = messages.length;
         const FATAL_CODES = new Set([401, 403, 404]);
+        const useThreads = replyMode === "threads";
+        const idMap = new Map<number, number>();
+        const threadMap = new Map<number, number>();
 
         outer: for (const msg of messages) {
           const hasText = msg.text.trim().length > 0;
           const hasMedia = msg.mediaPath !== null;
 
+          let threadId: number | undefined;
+          if (useThreads && msg.replyToMessageId != null) {
+            const targetMsgrId = idMap.get(msg.replyToMessageId);
+            if (targetMsgrId != null) {
+              threadId = threadMap.get(msg.replyToMessageId) ?? targetMsgrId;
+            } else {
+              send({
+                type: "info",
+                message: `[${msg.id}] Родительское сообщение ${msg.replyToMessageId} не было отправлено — ответ будет без треда`,
+              });
+            }
+          }
+
+          let storedMessageId: number | undefined;
+
           if (hasText) {
             try {
               await limiter.wait();
               const textPayload = formatMessageText(msg);
-              const res = await sendText(token, chatId, textPayload);
+              const res = await sendText(token, chatId, textPayload, threadId);
+              if (res.ok && res.message_id != null) {
+                storedMessageId = res.message_id;
+              }
               if (!res.ok) {
                 errors++;
                 if (res.statusCode && FATAL_CODES.has(res.statusCode)) {
@@ -118,16 +160,21 @@ export async function POST(req: NextRequest) {
                       chatId,
                       mediaBuffer,
                       msg.mediaFileName ?? "image.jpg",
-                      msg.mediaMimeType ?? "image/jpeg"
+                      msg.mediaMimeType ?? "image/jpeg",
+                      threadId
                     )
                   : await sendFile(
                       token,
                       chatId,
                       mediaBuffer,
                       msg.mediaFileName ?? "file",
-                      msg.mediaMimeType ?? "application/octet-stream"
+                      msg.mediaMimeType ?? "application/octet-stream",
+                      threadId
                     );
 
+              if (res.ok && res.message_id != null && storedMessageId == null) {
+                storedMessageId = res.message_id;
+              }
               if (!res.ok) {
                 errors++;
                 if (res.statusCode && FATAL_CODES.has(res.statusCode)) {
@@ -156,6 +203,13 @@ export async function POST(req: NextRequest) {
                 message: `[${msg.id}] Медиа: ${mediaErr instanceof Error ? mediaErr.message : String(mediaErr)}`,
                 messageId: msg.id,
               });
+            }
+          }
+
+          if (useThreads && storedMessageId != null) {
+            idMap.set(msg.id, storedMessageId);
+            if (threadId != null) {
+              threadMap.set(msg.id, threadId);
             }
           }
 
