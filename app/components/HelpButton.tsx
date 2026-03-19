@@ -44,10 +44,12 @@ export function HelpButton() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, close]);
 
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!open) {
+    if (wasOpen.current && !open) {
       triggerRef.current?.focus();
     }
+    wasOpen.current = open;
   }, [open]);
 
   return (
