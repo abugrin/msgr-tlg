@@ -236,7 +236,7 @@ export default function ImportPage() {
         </div>
         <div
           className="p-4 overflow-y-auto font-mono text-sm leading-relaxed bg-gray-50 dark:bg-gray-900/50"
-          style={{ maxHeight: "calc(1.5rem * 50)" }}
+          style={{ maxHeight: "320px" }}
         >
           {logs.length === 0 ? (
             <div className="text-gray-500 dark:text-gray-400 py-4 text-center">

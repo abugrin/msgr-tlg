@@ -65,8 +65,9 @@ export async function POST(req: NextRequest) {
         let errors = 0;
         let fallbackLogged = false;
         const total = messages.length;
+        const FATAL_CODES = new Set([401, 403, 404]);
 
-        for (const msg of messages) {
+        outer: for (const msg of messages) {
           const hasText = msg.text.trim().length > 0;
           const hasMedia = msg.mediaPath !== null;
 
@@ -77,6 +78,13 @@ export async function POST(req: NextRequest) {
               const res = await sendText(token, chatId, textPayload);
               if (!res.ok) {
                 errors++;
+                if (res.statusCode && FATAL_CODES.has(res.statusCode)) {
+                  send({
+                    type: "error",
+                    message: `Остановка: ${res.statusCode} — ${res.description}`,
+                  });
+                  break outer;
+                }
                 if (res.statusCode === 429 && !fallbackLogged) {
                   limiter.setMaxRps(FALLBACK_RPS);
                   fallbackLogged = true;
@@ -122,6 +130,13 @@ export async function POST(req: NextRequest) {
 
               if (!res.ok) {
                 errors++;
+                if (res.statusCode && FATAL_CODES.has(res.statusCode)) {
+                  send({
+                    type: "error",
+                    message: `Остановка: ${res.statusCode} — ${res.description}`,
+                  });
+                  break outer;
+                }
                 if (res.statusCode === 429 && !fallbackLogged) {
                   limiter.setMaxRps(FALLBACK_RPS);
                   fallbackLogged = true;
