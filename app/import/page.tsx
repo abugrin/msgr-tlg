@@ -156,6 +156,9 @@ export default function ImportPage() {
                        file:cursor-pointer file:disabled:opacity-50
                        cursor-pointer disabled:opacity-50"
           />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Максимальный размер файла: 150 МБ
+          </p>
         </div>
 
         <div>

@@ -77,7 +77,7 @@ export async function sendText(
   text: string,
   threadId?: number
 ): Promise<MessengerResponse> {
-  const payload: Record<string, unknown> = { chat_id: chatId, text };
+  const payload: Record<string, unknown> = { chat_id: chatId, text, disable_notification: true };
   if (threadId != null) payload.thread_id = threadId;
 
   return requestWithRetry(`${BASE_URL}/sendText`, {

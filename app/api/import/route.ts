@@ -13,7 +13,7 @@ export const maxDuration = 300;
 
 const INITIAL_RPS = 50;
 const FALLBACK_RPS = 20;
-const MAX_ZIP_SIZE_BYTES = 200 * 1024 * 1024; // 200 MB
+const MAX_ZIP_SIZE_BYTES = 150 * 1024 * 1024; // 150 MB
 const CHAT_ID_PATTERN = /^\d+\/\d+\/[0-9a-f-]+$/i;
 
 interface ProgressEvent {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   if (file.size > MAX_ZIP_SIZE_BYTES) {
     return Response.json(
-      { error: `Файл слишком большой (${Math.round(file.size / 1024 / 1024)} МБ). Максимум: 200 МБ` },
+      { error: `Файл слишком большой (${Math.round(file.size / 1024 / 1024)} МБ). Максимум: 150 МБ` },
       { status: 400 }
     );
   }
